@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <FreeImage.h>
 
 int main(int argc, char** argv)
 {
@@ -122,6 +123,54 @@ int main(int argc, char** argv)
 		}
 		printf("\n");
 	}*/
+	for (int i = 0; i < page_count; i++) {
+		fz_pixmap* pix;
+		fz_try(ctx)
+			pix = fz_new_pixmap_from_page_number(ctx, doc, i, fz_scale(180.0f / 72.0f, 180.0f / 72.0f), fz_device_rgb(ctx), 0);
+		fz_catch(ctx)
+		{
+			fprintf(stderr, "cannot render page: %s\n", fz_caught_message(ctx));
+			fz_drop_document(ctx, doc);
+			fz_drop_context(ctx);
+			return EXIT_FAILURE;
+		}
+
+		// Convert fz_pixmap to FreeImage FIBITMAP
+		FIBITMAP* bitmap = FreeImage_ConvertFromRawBits(pix->samples, pix->w, pix->h, pix->stride, 24, 0xFF0000, 0x00FF00, 0x0000FF, FALSE);
+
+		// Resize the image to 128x128
+		FIBITMAP* resized = FreeImage_Rescale(bitmap, 128, 128, FILTER_BICUBIC);
+		if (!resized) {
+			fprintf(stderr, "cannot resize image\n");
+			FreeImage_Unload(bitmap);
+			fz_drop_pixmap(ctx, pix);
+			fz_drop_document(ctx, doc);
+			fz_drop_context(ctx);
+			return EXIT_FAILURE;
+		}
+
+		// Save the image data to a PNG file.
+		char output_filename[256];
+		sprintf(output_filename, "output_page_%d.png", i + 1);  // Create a unique filename for each page
+		if (!FreeImage_Save(FIF_PNG, resized, output_filename, 0)) {
+			fprintf(stderr, "cannot save image: %s\n", output_filename);
+			FreeImage_Unload(resized);
+			FreeImage_Unload(bitmap);
+			fz_drop_pixmap(ctx, pix);
+			fz_drop_document(ctx, doc);
+			fz_drop_context(ctx);
+			return EXIT_FAILURE;
+		}
+
+		// Clean up.
+		FreeImage_Unload(resized);
+		FreeImage_Unload(bitmap);
+		fz_drop_pixmap(ctx, pix);
+	}
+
+	//fz_drop_document(ctx, doc);
+	//fz_drop_context(ctx);
+	//return EXIT_SUCCESS;
 
 	/* Clean up. */
 	fz_drop_pixmap(ctx, pix);
