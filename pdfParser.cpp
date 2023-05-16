@@ -1,67 +1,117 @@
 #include <mupdf/fitz.h>
-#include <FreeImage.h>
 
-int main(int argc, char* argv[]) {
-    if (argc != 2) {
-        printf("Usage: %s <pdf_file>\n", argv[0]);
-        return 1;
-    }
+#include <stdio.h>
+#include <stdlib.h>
 
-    fz_context* context = fz_new_context(NULL, NULL, FZ_STORE_UNLIMITED);
-    if (!context) {
-        printf("Failed to create context\n");
-        return 1;
-    }
+int main(int argc, char** argv)
+{
+	char* input;
+	float zoom, rotate;
+	int page_number, page_count;
+	fz_context* ctx;
+	fz_document* doc;
+	fz_pixmap* pix;
+	fz_matrix ctm;
+	int x, y;
 
-    fz_register_document_handlers(context);
+	if (argc < 3)
+	{
+		fprintf(stderr, "usage: example input-file page-number [ zoom [ rotate ] ]\n");
+		fprintf(stderr, "\tinput-file: path of PDF, XPS, CBZ or EPUB document to open\n");
+		fprintf(stderr, "\tPage numbering starts from one.\n");
+		fprintf(stderr, "\tZoom level is in percent (100 percent is 72 dpi).\n");
+		fprintf(stderr, "\tRotation is in degrees clockwise.\n");
+		return EXIT_FAILURE;
+	}
 
-    fz_document* doc = fz_open_document(context, argv[1]);
-    if (!doc) {
-        printf("Failed to open document\n");
-        fz_drop_context(context);
-        return 1;
-    }
+	input = argv[1];
+	page_number = atoi(argv[2]) - 1;
+	zoom = argc > 3 ? atof(argv[3]) : 100;
+	rotate = argc > 4 ? atof(argv[4]) : 0;
 
-    int page_count = fz_count_pages(context, doc);
-    for (int i = 0; i < page_count; ++i) {
-        fz_page* page = fz_load_page(context, doc, i);
-        fz_matrix transform;
-        fz_pre_rotate(transform, 0);
-        fz_pre_scale(transform, 1.0, 1.0);
+	/* Create a context to hold the exception stack and various caches. */
+	ctx = fz_new_context(NULL, NULL, FZ_STORE_UNLIMITED);
+	if (!ctx)
+	{
+		fprintf(stderr, "cannot create mupdf context\n");
+		return EXIT_FAILURE;
+	}
 
-        fz_rect bounds;
-        fz_bound_page(context, page, bounds);
-        fz_transform_rect(bounds, transform);
+	/* Register the default file types to handle. */
+	fz_try(ctx)
+		fz_register_document_handlers(ctx);
+	fz_catch(ctx)
+	{
+		fprintf(stderr, "cannot register document handlers: %s\n", fz_caught_message(ctx));
+		fz_drop_context(ctx);
+		return EXIT_FAILURE;
+	}
 
-        fz_irect bbox;
-        fz_round_rect(bbox, bounds);
+	/* Open the document. */
+	fz_try(ctx)
+		doc = fz_open_document(ctx, input);
+	fz_catch(ctx)
+	{
+		fprintf(stderr, "cannot open document: %s\n", fz_caught_message(ctx));
+		fz_drop_context(ctx);
+		return EXIT_FAILURE;
+	}
 
-        fz_pixmap* pixmap = fz_new_pixmap_from_page_contents(context, page, &transform, fz_device_rgb(context), 0);
+	/* Count the number of pages. */
+	fz_try(ctx)
+		page_count = fz_count_pages(ctx, doc);
+	fz_catch(ctx)
+	{
+		fprintf(stderr, "cannot count number of pages: %s\n", fz_caught_message(ctx));
+		fz_drop_document(ctx, doc);
+		fz_drop_context(ctx);
+		return EXIT_FAILURE;
+	}
 
-        // TODO: Сделать ресайз изображения с использованием FreeImage
-        // TODO: Сохранить изображение в файл или отправить на сервер
+	if (page_number < 0 || page_number >= page_count)
+	{
+		fprintf(stderr, "page number out of range: %d (page count %d)\n", page_number + 1, page_count);
+		fz_drop_document(ctx, doc);
+		fz_drop_context(ctx);
+		return EXIT_FAILURE;
+	}
 
-        fz_drop_pixmap(context, pixmap);
-        fz_drop_page(context, page);
-    }
-    FIBITMAP* originalImage = FreeImage_Load(FIF_PNG, "your_image.png", PNG_DEFAULT);
-    int originalWidth = FreeImage_GetWidth(originalImage);
-    int originalHeight = FreeImage_GetHeight(originalImage);
+	/* Compute a transformation matrix for the zoom and rotation desired. */
+	/* The default resolution without scaling is 72 dpi. */
+	ctm = fz_scale(zoom / 100, zoom / 100);
+	ctm = fz_pre_rotate(ctm, rotate);
 
-    // Calculate new dimensions with preserved aspect ratio
-    float resizeRatio = std::min(128.0f / originalWidth, 128.0f / originalHeight);
-    int newWidth = static_cast<int>(originalWidth * resizeRatio);
-    int newHeight = static_cast<int>(originalHeight * resizeRatio);
+	/* Render page to an RGB pixmap. */
+	fz_try(ctx)
+		pix = fz_new_pixmap_from_page_number(ctx, doc, page_number, ctm, fz_device_rgb(ctx), 0);
+	fz_catch(ctx)
+	{
+		fprintf(stderr, "cannot render page: %s\n", fz_caught_message(ctx));
+		fz_drop_document(ctx, doc);
+		fz_drop_context(ctx);
+		return EXIT_FAILURE;
+	}
 
-    FIBITMAP* resizedImage = FreeImage_Rescale(originalImage, newWidth, newHeight, FILTER_BICUBIC);
+	/* Print image data in ascii PPM format. */
+	printf("P3\n");
+	printf("%d %d\n", pix->w, pix->h);
+	printf("255\n");
+	for (y = 0; y < pix->h; ++y)
+	{
+		unsigned char* p = &pix->samples[y * pix->stride];
+		for (x = 0; x < pix->w; ++x)
+		{
+			if (x > 0)
+				printf("  ");
+			printf("%3d %3d %3d", p[0], p[1], p[2]);
+			p += pix->n;
+		}
+		printf("\n");
+	}
 
-    // Save the resized image
-    FreeImage_Save(FIF_PNG, resizedImage, "resized_image.png", PNG_DEFAULT);
-
-    FreeImage_Unload(originalImage);
-    FreeImage_Unload(resizedImage);
-
-    fz_drop_document(context, doc);
-    fz_drop_context(context);
-    return 0;
+	/* Clean up. */
+	fz_drop_pixmap(ctx, pix);
+	fz_drop_document(ctx, doc);
+	fz_drop_context(ctx);
+	return EXIT_SUCCESS;
 }
