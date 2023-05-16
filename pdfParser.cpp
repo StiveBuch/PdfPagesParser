@@ -92,11 +92,25 @@ int main(int argc, char** argv)
 		return EXIT_FAILURE;
 	}
 
+	/* Save the image data to a PNG file. */
+	char output_filename[256];
+	sprintf(output_filename, "output_page_%d.png", page_number + 1);  // Create a unique filename for each page
+	fz_try(ctx)
+		fz_save_pixmap_as_png(ctx, pix, output_filename);
+	fz_catch(ctx)
+	{
+		fprintf(stderr, "cannot save pixmap: %s\n", fz_caught_message(ctx));
+		fz_drop_pixmap(ctx, pix);
+		fz_drop_document(ctx, doc);
+		fz_drop_context(ctx);
+		return EXIT_FAILURE;
+	}
+
 	/* Print image data in ascii PPM format. */
 	printf("P3\n");
 	printf("%d %d\n", pix->w, pix->h);
 	printf("255\n");
-	for (y = 0; y < pix->h; ++y)
+	/*for (y = 0; y < pix->h; ++y)
 	{
 		unsigned char* p = &pix->samples[y * pix->stride];
 		for (x = 0; x < pix->w; ++x)
@@ -107,11 +121,14 @@ int main(int argc, char** argv)
 			p += pix->n;
 		}
 		printf("\n");
-	}
+	}*/
 
 	/* Clean up. */
 	fz_drop_pixmap(ctx, pix);
 	fz_drop_document(ctx, doc);
 	fz_drop_context(ctx);
 	return EXIT_SUCCESS;
+
+
+
 }
