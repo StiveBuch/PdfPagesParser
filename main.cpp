@@ -1,28 +1,22 @@
-#include <QtCore/QCoreApplication>
+#include <QCoreApplication>
 #include "DocumentProcessor.h"
 #include "FileUploader.h"
 
-int main(int argc, char* argv[]) {
-    if (argc < 2)
-    {
-        fprintf(stderr, "usage: example input-file\n");
+int main(int argc, char** argv) {
+    if (argc < 2) {
+        fprintf(stderr, "usage: program input-file\n");
         fprintf(stderr, "\tinput-file: path of PDF, XPS, CBZ or EPUB document to open\n");
         return EXIT_FAILURE;
     }
-
-    QCoreApplication app(argc, argv);  // Для QtUploader
-
-    char* input = argv[1];
-    DocumentProcessor dp(input);
-
-    // Обработка и отправка каждой страницы через Qt
-    std::vector<QString> fileNames;
-    for (int i = 0; i < dp.getPageCount(); ++i) {
-        fileNames.push_back(dp.processPage(i)); // где processPage возвращает имя файла
+    QCoreApplication app(argc, argv);
+    DocumentProcessor docProc(argv[1]);
+    if (!docProc.processDocument()) {
+        return EXIT_FAILURE;
     }
 
-    FileUploader qtUploader(fileNames);
-    qtUploader.uploadFiles();
+    FileUploader uploader(docProc.getOutputFiles());
+    QObject::connect(&uploader, &FileUploader::allFilesUploaded, &app, &QCoreApplication::quit);
+    uploader.uploadFiles();
 
-    return app.exec(); // Для QtUploader
+    return app.exec();
 }
