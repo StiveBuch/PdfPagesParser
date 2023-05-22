@@ -17,5 +17,13 @@ private:
     fz_context* ctx = nullptr;
     fz_document* doc = nullptr;
     QString inputFile;
+    float zoom;
+    float rotate;
+    std::vector<QString> outputFiles;
+
+    void cleanUp();
+    FIBITMAP* createFreeImageBitmap(fz_pixmap* pixmap);
+    FIBITMAP* resizeFreeImageBitmap(FIBITMAP* bitmap);
+    FIBITMAP* resizeImageToThumbnail(FIBITMAP* bitmap,int width);
 };
 
