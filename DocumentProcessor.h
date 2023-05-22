@@ -24,5 +24,6 @@ private:
     void cleanUp();
     FIBITMAP* createFreeImageBitmap(fz_pixmap* pixmap);
     FIBITMAP* resizeFreeImageBitmap(FIBITMAP* bitmap);
+    FIBITMAP* resizeImageToThumbnail(FIBITMAP* bitmap,int width);
 };
 

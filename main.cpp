@@ -16,7 +16,8 @@ int main(int argc, char** argv) {
 
     FileUploader uploader(docProc.getOutputFiles());
     QObject::connect(&uploader, &FileUploader::allFilesUploaded, &app, &QCoreApplication::quit);
-    uploader.uploadFiles();
+    QUrl url("http://127.0.0.1:5000/upload");
+    uploader.uploadFiles(url);
 
     return app.exec();
 }

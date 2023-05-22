@@ -13,13 +13,13 @@ class FileUploader : public QObject {
 public:
     FileUploader(const std::vector<QString>& files, QObject* parent = nullptr);
 
-    void uploadFiles();
+    void uploadFiles(QUrl erl);
 
 signals:
     void allFilesUploaded();
 
 private slots:
-    void onUploadFinished();
+    void onUploadFinished(QNetworkReply* reply);
 
 private:
     QNetworkAccessManager networkManager;
