@@ -13,5 +13,9 @@ public:
     std::vector<QString> getOutputFiles() const;
     int getPageCount();
 
+private:
+    fz_context* ctx = nullptr;
+    fz_document* doc = nullptr;
+    QString inputFile;
 };
 
